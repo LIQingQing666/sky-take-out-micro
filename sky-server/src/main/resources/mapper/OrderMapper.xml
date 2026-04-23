@@ -1,0 +1,178 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<mapper namespace="com.sky.mapper.OrderMapper">
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        insert into orders (
+            number, status, user_id, address_book_id, order_time,
+            checkout_time, pay_method, pay_status, amount, remark,
+            user_name, phone, address, consignee, cancel_reason,
+            rejection_reason, cancel_time, estimated_delivery_time,
+            delivery_status, delivery_time, pack_amount,
+            tableware_number, tableware_status
+        )
+        values (
+                   #{number}, #{status}, #{userId}, #{addressBookId}, #{orderTime},
+                   #{checkoutTime}, #{payMethod}, #{payStatus}, #{amount}, #{remark},
+                   #{userName}, #{phone}, #{address}, #{consignee}, #{cancelReason},
+                   #{rejectionReason}, #{cancelTime}, #{estimatedDeliveryTime},
+                   #{deliveryStatus}, #{deliveryTime}, #{packAmount},
+                   #{tablewareNumber}, #{tablewareStatus}
+               )
+    </insert>
+    <delete id="delivery">
+        update orders set
+            status = #{status},
+            delivery_time = #{deliveryTime}
+            where id = #{id}
+    </delete>
+
+    <select id="pageQuery" resultType="com.sky.entity.Orders">
+        select * from orders
+        <where>
+            <!-- 1. 替换${}为concat+#{}，避免SQL注入；去掉开头的and -->
+            <if test="number != null and number != ''">
+                number like concat('%', #{number}, '%')
+            </if>
+            <!-- 2. 转义特殊字符：> → &gt;，< → &lt; -->
+            <if test="beginTime != null and beginTime != ''">
+                and order_time &gt;= #{beginTime}
+            </if>
+            <if test="endTime != null and endTime != ''">
+                and order_time &lt;= #{endTime}
+            </if>
+            <!-- 3. 移除status的!= ''判断（整型无需判断空字符串） -->
+            <if test="status != null">
+                and status = #{status}
+            </if>
+            <if test="phone != null and phone != ''">
+                and phone like concat('%', #{phone}, '%')
+            </if>
+            <if test="userId != null">
+                and user_id = #{userId}
+            </if>
+        </where>
+        order by order_time desc
+    </select>
+    <select id="statistics" resultType="com.sky.vo.OrderStatisticsVO">
+        select
+            sum(if(status = 2, 1, 0)) as toBeConfirmed,
+            sum(if(status = 3, 1, 0)) as confirmed,
+            sum(if(status = 4, 1, 0)) as deliveryInProgress
+        from orders
+    </select>
+    <select id="getById" resultType="com.sky.entity.Orders">
+        select * from orders where id = #{id}
+    </select>
+    <select id="sumByMap" resultType="java.lang.Double">
+        select sum(amount) from orders
+        <where>
+            <if test="begin != null">
+                and order_time &gt;= #{begin}
+            </if>
+            <if test="end != null">
+                and order_time &lt;= #{end}
+            </if>
+            <if test="status != null">
+                and status = #{status}
+            </if>
+        </where>
+    </select>
+    <select id="countByMap" resultType="java.lang.Integer">
+        select count(id) from orders
+        <where>
+            <if test="begin != null">
+                and order_time &gt;= #{begin}
+            </if>
+            <if test="end != null">
+                and order_time &lt;= #{end}
+            </if>
+            <if test="status != null">
+                and status = #{status}
+            </if>
+        </where>
+    </select>
+    <select id="getSalesTop10" resultType="com.sky.dto.GoodsSalesDTO">
+        select od.name, sum(od.number) as number from order_detail od, orders o
+        <where>
+            od.order_id = o.id
+            and o.status = 5
+            and o.order_time &gt;= #{begin}
+            and o.order_time &lt;= #{end}
+        </where>
+        group by od.name
+        order by number desc
+        limit 10
+    </select>
+
+    <update id="rejection">
+        update orders set
+            status = #{status},
+            rejection_reason = #{rejectionReason},
+            cancel_time = #{cancelTime},
+            pay_status = #{payStatus}
+            where id = #{id}
+    </update>
+    <update id="confirm">
+        update orders set
+            status = #{status},
+            delivery_time = #{deliveryTime}
+            where id = #{id}
+    </update>
+    <update id="cancel">
+        update orders
+        <trim prefix="set" suffixOverrides=",">  <!-- 关键：用trim自动移除最后一个逗号 -->
+            <if test="status != null">
+                status = #{status},
+            </if>
+            <if test="cancelTime != null">
+                cancel_time = #{cancelTime},
+            </if>
+            <if test="cancelReason != null">
+                cancel_reason = #{cancelReason},
+            </if>
+            <if test="payStatus != null">
+                pay_status = #{payStatus},
+            </if>
+        </trim>
+        where id = #{id}
+    </update>
+    <update id="complete">
+        update orders set
+            status = #{status},
+            delivery_time = #{deliveryTime}
+            where id = #{id}
+    </update>
+
+    <update id="update" parameterType="com.sky.entity.Orders">
+        update orders
+        <set>
+            <if test="cancelReason != null and cancelReason!='' ">
+                cancel_reason=#{cancelReason},
+            </if>
+            <if test="rejectionReason != null and rejectionReason!='' ">
+                rejection_reason=#{rejectionReason},
+            </if>
+            <if test="cancelTime != null">
+                cancel_time=#{cancelTime},
+            </if>
+            <if test="payStatus != null">
+                pay_status=#{payStatus},
+            </if>
+            <if test="payMethod != null">
+                pay_method=#{payMethod},
+            </if>
+            <if test="checkoutTime != null">
+                checkout_time=#{checkoutTime},
+            </if>
+            <if test="status != null">
+                status = #{status},
+            </if>
+            <if test="deliveryTime != null">
+                delivery_time = #{deliveryTime}
+            </if>
+        </set>
+        where id = #{id}
+    </update>
+
+</mapper>
